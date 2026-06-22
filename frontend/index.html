@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Resume Tailor</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <h1>Resume Tailor</h1>
+    <div class="jd">
+      <textarea id="jd" placeholder="Paste the job description here…"></textarea>
+    </div>
+    <div class="controls">
+      <button id="score-btn" type="button">Score</button>
+      <button id="pack-btn" type="button">Auto-pack</button>
+      <button id="export-btn" type="button" disabled>Export</button>
+      <input id="company" type="text" placeholder="company (archive name)" />
+      <span id="llm-badge" class="badge muted" title="Whether the local LLM was used or scoring fell back to the deterministic baseline">LLM: —</span>
+      <span id="status" class="status" role="status" aria-live="polite"></span>
+    </div>
+    <div id="fit-gauge" class="fit-gauge" hidden>
+      <span class="fit-label">Fit</span>
+      <div class="fit-bar"><div id="fit-fill" class="fit-fill"></div></div>
+      <span id="fit-text" class="fit-text"></span>
+    </div>
+  </header>
+
+  <main>
+    <section id="library" class="pane">
+      <div class="pane-head">
+        <h2>Library</h2>
+        <input id="search" type="search" placeholder="filter text + tags…" />
+      </div>
+      <div id="library-body" class="pane-body"></div>
+    </section>
+
+    <section id="proposal" class="pane">
+      <div class="pane-head"><h2>Proposal</h2><span id="proposal-meta" class="meta"></span></div>
+      <div id="proposal-body" class="pane-body"><p class="empty">Auto-pack to build a proposal.</p></div>
+    </section>
+
+    <section id="preview" class="pane">
+      <div class="pane-head"><h2>Preview</h2></div>
+      <div class="pane-body preview-body">
+        <iframe id="pdf" title="Compiled resume PDF"></iframe>
+        <p id="preview-empty" class="empty">The compiled one-page PDF appears here after auto-pack.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
