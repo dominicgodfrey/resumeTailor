@@ -159,9 +159,9 @@ Write `archive/<YYYY-MM-DD>-<company-slug>/` containing `resume.pdf`, `resume.te
 ## Build phases (checkpointed)
 
 Work proceeds in major phases; **stop and wait for instruction after each**:
-0. **Scaffolding** — `plan.md` + `CLAUDE.md`, repo init, first push. *(current)*
-1. Template ingestion + render/fit probe.
-2. Content model + seed data.
+0. **Scaffolding** — `plan.md` + `CLAUDE.md`, repo init, first push. ✓
+1. **Template ingestion + render/fit probe.** ✓ — Jake template mapped to `templates/resume.tex.j2` (XeTeX-adapted), `backend/render.py` compiles via Tectonic and measures one-page fit with `zref-savepos`; `scripts/verify_step1.py` passes (1 page, ~4.6 cm to spare).
+2. Content model + seed data. *(next)*
 3. Deterministic scoring.
 4. LLM layer.
 5. Packer.

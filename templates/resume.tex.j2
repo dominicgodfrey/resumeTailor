@@ -1,0 +1,165 @@
+%-------------------------
+% Resume template (Jinja2) — adapted from Jake Gutierrez's template
+%   https://github.com/jakegut/resume  (MIT)
+% Adaptations:
+%   * pdfTeX-only ATS tweaks guarded for XeTeX/Tectonic
+%   * zref-savepos fit probe (rt_top / rt_end) for one-page measurement
+%   * LaTeX-safe Jinja delimiters (see backend/render.py _jinja_env):
+%       variables: triple-paren, blocks: paren-star, comments: paren-equals
+%-------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{zref-savepos}   % fit probe: records absolute positions into the .aux
+
+% pdfTeX-only ATS tweak; skipped automatically under XeTeX/Tectonic
+\ifdefined\pdfgentounicode
+  \input{glyphtounicode}
+  \pdfgentounicode=1
+\fi
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+\begin{document}
+\typeout{RT_TEXTHEIGHT=\the\textheight}
+\zsavepos{rt_top}
+
+%---------- HEADING ----------
+\begin{center}
+    \textbf{\Huge \scshape ((( name )))} \\ \vspace{1pt}
+    \small ((* for c in contacts *))((* if not loop.first *)) $|$ ((* endif *))((* if c.get('href') *))\href{((( c.href )))}{\underline{((( c.text )))}}((* else *))((( c.text )))((* endif *))((* endfor *))
+\end{center}
+
+%----------- EDUCATION -----------
+((* if education *))
+\section{Education}
+  \resumeSubHeadingListStart
+((* for e in education *))
+    \resumeSubheading
+      {((( e.school )))}{((( e.location )))}
+      {((( e.degree )))}{((( e.dates )))}
+((* endfor *))
+  \resumeSubHeadingListEnd
+((* endif *))
+
+%----------- EXPERIENCE -----------
+((* if experience *))
+\section{Experience}
+  \resumeSubHeadingListStart
+((* for j in experience *))
+    \resumeSubheading
+      {((( j.title )))}{((( j.dates )))}
+      {((( j.company )))}{((( j.location )))}
+      \resumeItemListStart
+((* for b in j.bullets *))
+        \resumeItem{((( b )))}
+((* endfor *))
+      \resumeItemListEnd
+((* endfor *))
+  \resumeSubHeadingListEnd
+((* endif *))
+
+%----------- PROJECTS -----------
+((* if projects *))
+\section{Projects}
+  \resumeSubHeadingListStart
+((* for p in projects *))
+    \resumeProjectHeading
+      {\textbf{((( p.name )))}((* if p.get('tech') *)) $|$ \emph{((( p.tech )))}((* endif *))}{((( p.dates )))}
+      \resumeItemListStart
+((* for b in p.bullets *))
+        \resumeItem{((( b )))}
+((* endfor *))
+      \resumeItemListEnd
+((* endfor *))
+  \resumeSubHeadingListEnd
+((* endif *))
+
+%----------- TECHNICAL SKILLS -----------
+((* if skills *))
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+((* for s in skills *))
+     \textbf{((( s['category'] )))}{: ((( s['items'] )))}((* if not loop.last *)) \\((* endif *))
+((* endfor *))
+    }}
+ \end{itemize}
+((* endif *))
+
+\zsavepos{rt_end}
+%-------------------------------------------
+\end{document}

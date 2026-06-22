@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Build / compile artifacts
+/build/
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# Bundled Tectonic binary (downloaded locally, not committed)
+/tools/
+
+# Tectonic package cache
+.tectonic-cache/
+
+# Generated/exported resumes
+/archive/
