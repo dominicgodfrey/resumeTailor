@@ -20,5 +20,8 @@ venv/
 # Tectonic package cache
 .tectonic-cache/
 
+# LLM response cache
+.llm-cache/
+
 # Generated/exported resumes
 /archive/

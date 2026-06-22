@@ -172,6 +172,17 @@ class BulletScore:
     raw: float
     normalized: float
     matched_skills: list[str]
+    # Filled by the LLM layer (step 4) when enabled; left as None for the
+    # deterministic-only / fallback path.
+    llm_score: float | None = None
+    final_score: float | None = None
+    matched_requirements: list[str] = field(default_factory=list)
+
+    @property
+    def pack_score(self) -> float:
+        """The single number the packer ranks on: the blended LLM score when
+        available, else the normalized baseline."""
+        return self.final_score if self.final_score is not None else self.normalized
 
 
 @dataclass

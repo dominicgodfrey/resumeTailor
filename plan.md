@@ -163,8 +163,8 @@ Work proceeds in major phases; **stop and wait for instruction after each**:
 1. **Template ingestion + render/fit probe.** ✓ — Jake template mapped to `templates/resume.tex.j2` (XeTeX-adapted), `backend/render.py` compiles via Tectonic and measures one-page fit with `zref-savepos`; `scripts/verify_step1.py` passes (1 page, ~4.6 cm to spare).
 2. **Content model + seed data.** ✓ — pydantic schemas in `backend/models.py` (extra-key-strict, unique-id validation, tier enum), YAML loader/validator in `backend/content.py`, `content/` seeded with the Jake sample (profile, aliases, 3 jobs, 2 projects) as hand-editable placeholders; `scripts/verify_step2.py` passes (loads, validates, checks fixed-bullet + min-bullets invariants).
 3. **Deterministic scoring.** ✓ — `backend/scoring.py`: alias canonicalization, line-by-line JD section detection (required/body/nice), strongest-context + frequency weighting, per-bullet/item scoring with normalization, and the LLM shortlister. `tests/test_scoring.py` (13 cases: alias expansion, section/freq weighting, word-boundary safety, scoring, shortlist determinism) passes; `scripts/verify_step3.py` ranks the seed library against a sample backend JD.
-4. LLM layer. *(next)*
-5. Packer.
+4. **LLM layer.** ✓ — `backend/llm.py`: Ollama OpenAI-compatible client (fast-fail connect, `/no_think` for Qwen), JD skill extraction + bullet re-rank prompts (JSON only, never bullet text), robust `extract_json` (think-tags/fences/prose), `(jd_hash, content_hash, model)` disk cache, candidate selection (baseline-nonzero + high-tier fill), and the blend writing `final_score`/`pack_score` onto `BulletScore`. Graceful fallback to baseline on any error. `tests/test_llm.py` (18 cases incl. content-immutability + fallback) passes; `scripts/verify_step4.py` ran the live `qwen3:8b` path (OAuth bullet correctly boosted, Celery demoted) and confirmed caching.
+5. Packer. *(next)*
 6. FastAPI routes.
 7. Frontend.
 8. End-to-end + tuning.
