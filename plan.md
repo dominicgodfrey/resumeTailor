@@ -161,8 +161,8 @@ Write `archive/<YYYY-MM-DD>-<company-slug>/` containing `resume.pdf`, `resume.te
 Work proceeds in major phases; **stop and wait for instruction after each**:
 0. **Scaffolding** — `plan.md` + `CLAUDE.md`, repo init, first push. ✓
 1. **Template ingestion + render/fit probe.** ✓ — Jake template mapped to `templates/resume.tex.j2` (XeTeX-adapted), `backend/render.py` compiles via Tectonic and measures one-page fit with `zref-savepos`; `scripts/verify_step1.py` passes (1 page, ~4.6 cm to spare).
-2. Content model + seed data. *(next)*
-3. Deterministic scoring.
+2. **Content model + seed data.** ✓ — pydantic schemas in `backend/models.py` (extra-key-strict, unique-id validation, tier enum), YAML loader/validator in `backend/content.py`, `content/` seeded with the Jake sample (profile, aliases, 3 jobs, 2 projects) as hand-editable placeholders; `scripts/verify_step2.py` passes (loads, validates, checks fixed-bullet + min-bullets invariants).
+3. Deterministic scoring. *(next)*
 4. LLM layer.
 5. Packer.
 6. FastAPI routes.

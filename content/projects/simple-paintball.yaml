@@ -1,0 +1,16 @@
+id: proj-simple-paintball
+name: "Simple Paintball"
+tech: "Spigot API, Java, Maven, TravisCI, Git"
+dates: "May 2018 -- May 2020"
+link: "https://github.com/jake/simple-paintball"
+fixed_bullet: "Developed a Minecraft server plugin to entertain kids during free time for a previous job"
+tags: [java, git, ci]
+bullets:
+  - id: paintball-publish
+    text: "Published plugin to websites gaining 2K+ downloads and an average 4.5/5-star review"
+    tags: [java]
+    tier: optional
+  - id: paintball-ci
+    text: "Configured continuous integration with TravisCI to automatically build and test on every commit"
+    tags: [ci, testing, git]
+    tier: strong

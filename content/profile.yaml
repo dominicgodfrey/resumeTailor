@@ -1,0 +1,48 @@
+# Locked header/footer content + tunable settings.
+# This is SEED data (Jake Gutierrez's sample resume) — replace the values with
+# your own. Bullet/skill text is treated as raw LaTeX (escape & as \&, etc.).
+name: "Jake Ryan"
+
+contacts:
+  - text: "123-456-7890"
+  - text: "jake@su.edu"
+    href: "mailto:jake@su.edu"
+  - text: "linkedin.com/in/jake"
+    href: "https://linkedin.com/in/jake"
+  - text: "github.com/jake"
+    href: "https://github.com/jake"
+
+education:
+  - school: "Southwestern University"
+    location: "Georgetown, TX"
+    degree: "Bachelor of Arts in Computer Science, Minor in Business"
+    dates: "Aug. 2018 -- May 2021"
+  - school: "Blinn College"
+    location: "Bryan, TX"
+    degree: "Associate's in Liberal Arts"
+    dates: "Aug. 2014 -- May 2018"
+
+awards: []
+
+# Static, locked Technical Skills block (never score-governed).
+skills:
+  - category: "Languages"
+    items: "Java, Python, C/C++, SQL (Postgres), JavaScript, HTML/CSS, R"
+  - category: "Frameworks"
+    items: "React, Node.js, Flask, JUnit, WordPress, Material-UI, FastAPI"
+  - category: "Developer Tools"
+    items: "Git, Docker, TravisCI, Google Cloud Platform, VS Code, IntelliJ"
+  - category: "Libraries"
+    items: "pandas, NumPy, Matplotlib"
+
+settings:
+  page_target: 1
+  closeness_threshold: 0.10
+  min_bullets_per_open_project: 2
+  max_bullets_per_item: 4
+  llm:
+    enabled: true
+    base_url: "http://localhost:11434/v1"
+    model: "qwen3:8b"
+    blend_weight: 0.6
+    thinking: false

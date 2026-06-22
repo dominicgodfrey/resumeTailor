@@ -1,0 +1,24 @@
+# Canonical skill -> variants/synonyms. The scorer expands both JD terms and
+# bullet/item tags through this map to a canonical form before matching, so
+# "postgres", "postgresql", and "psql" all count as the same skill.
+# Keys are canonical tags; values are alternate spellings seen in JDs.
+postgres: [postgresql, psql, "postgres sql", postgre]
+javascript: [js, ecmascript, es6]
+typescript: [ts]
+python: [py]
+react: [reactjs, "react.js"]
+node: [nodejs, "node.js"]
+rest: ["rest api", restful, "restful api"]
+fastapi: ["fast api"]
+flask: []
+docker: [containerization, containers]
+git: [github, version control]
+ci: [ci/cd, "continuous integration", travisci, "github actions"]
+sql: [rdbms, "relational database"]
+oauth: [oauth2, "oauth 2.0", sso]
+java: []
+"c++": [cpp, "c/c++"]
+frontend: ["front end", "front-end", ui]
+backend: ["back end", "back-end"]
+fullstack: ["full stack", "full-stack"]
+testing: [unittest, junit, pytest, "unit testing", "test driven development", tdd]

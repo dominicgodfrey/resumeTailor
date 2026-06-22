@@ -1,0 +1,16 @@
+id: exp-it-support
+company: "Southwestern University"
+title: "Information Technology Support Specialist"
+location: "Georgetown, TX"
+dates: "Sep. 2018 -- Present"
+fixed_bullet: "Communicate with managers to set up campus computers used on campus"
+tags: [support, hardware]
+bullets:
+  - id: it-troubleshoot
+    text: "Assess and troubleshoot computer problems brought by students, faculty and staff"
+    tags: [support, troubleshooting]
+    tier: optional
+  - id: it-maintain
+    text: "Maintain upkeep of computers, classroom equipment, and 200 printers across campus"
+    tags: [hardware, support]
+    tier: optional

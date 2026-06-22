@@ -1,0 +1,21 @@
+id: proj-gitlytics
+name: "Gitlytics"
+tech: "Python, Flask, React, PostgreSQL, Docker"
+dates: "June 2020 -- Present"
+link: "https://github.com/jake/gitlytics"
+# Shown only when the project is selected, then always first.
+fixed_bullet: "Developed a full-stack web application using Flask serving a REST API with React as the frontend"
+tags: [python, flask, react, postgres, docker, fullstack, rest]
+bullets:
+  - id: gitlytics-oauth
+    text: "Implemented GitHub OAuth to get data from user's repositories"
+    tags: [oauth, git, backend]
+    tier: strong
+  - id: gitlytics-visualize
+    text: "Visualized GitHub data to show collaboration"
+    tags: [frontend, react]
+    tier: optional
+  - id: gitlytics-celery
+    text: "Used Celery and Redis to asynchronously process queued data-collection tasks"
+    tags: [python, backend]
+    tier: optional
