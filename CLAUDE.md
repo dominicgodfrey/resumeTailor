@@ -46,7 +46,7 @@ See [`plan.md`](plan.md) for the full design. Backend modules:
 
 ## Packer invariants
 
-Maximize total score; on near-ties (within `closeness_threshold`) prefer breadth. Eligible projects are dropped by default and **pinned to force**. Respect `min_bullets_per_open_project`, `max_bullets_per_item`, pins, and excludes. Verify fit by real compile + page-count / `zref-savepos`, not estimation alone.
+Maximize total score; on near-ties (within `closeness_threshold`) prefer breadth. With `fill_page` on (the default) leftover page space is filled with the best-remaining authored bullets, relevant content first; with it off, JD-irrelevant projects/bullets are dropped and must be **pinned to force**. Respect `min_bullets_per_open_project`, `max_bullets_per_item`, pins, and excludes. Verify fit by real compile + page-count / `zref-savepos`, not estimation alone.
 
 ## Conventions
 

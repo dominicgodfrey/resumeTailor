@@ -130,6 +130,8 @@ class PackConfig:
     closeness_threshold: float = 0.10
     min_bullets_per_open_project: int = 2
     max_bullets_per_item: int = 4
+    fill_page: bool = True   # spend leftover budget on the best-remaining bullets
+                             # even with no JD relevance (vs. dropping them)
 
 
 def _ordered_pool(bullets, scores: dict[str, float], excludes: set[str]) -> list[str]:
@@ -242,11 +244,15 @@ def pack(
         return moves
 
     while True:
-        # Only spend budget on relevant content: a move must fit AND carry some
-        # JD score. Irrelevant bullets are dropped by default (pin to force them
-        # in) rather than used as page filler.
+        # A move must fit the remaining budget. When ``fill_page`` is off we also
+        # require some JD score, so irrelevant content is dropped (pin to force it
+        # in) rather than used as filler. When on (the default), zero-score moves
+        # are eligible too — but greedy-by-density still spends the relevant,
+        # higher-density content first and only falls back to filler once it runs
+        # out, so the page fills top-down by relevance.
         fitting = [m for m in generate()
-                   if m.score > MIN_MOVE_SCORE and used + m.height <= budget + 1e-9]
+                   if used + m.height <= budget + 1e-9
+                   and (config.fill_page or m.score > MIN_MOVE_SCORE)]
         if not fitting:
             break
         pick = _choose(fitting, config.closeness_threshold)
@@ -356,6 +362,7 @@ def pack_and_verify(
         closeness_threshold=settings.closeness_threshold,
         min_bullets_per_open_project=settings.min_bullets_per_open_project,
         max_bullets_per_item=settings.max_bullets_per_item,
+        fill_page=settings.fill_page,
     )
     heights = EstimatedHeights(content)
 

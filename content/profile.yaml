@@ -40,6 +40,8 @@ settings:
   closeness_threshold: 0.10
   min_bullets_per_open_project: 2
   max_bullets_per_item: 4
+  fill_page: true   # fill leftover page space with best-remaining bullets
+                    # (set false to drop JD-irrelevant content instead)
   llm:
     enabled: true
     base_url: "http://localhost:11434/v1"

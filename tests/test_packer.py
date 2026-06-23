@@ -150,6 +150,35 @@ def test_exclude_vetoes_pin():
 
 
 # --------------------------------------------------------------------------- #
+# page filling (fill_page)
+# --------------------------------------------------------------------------- #
+def test_fill_page_uses_leftover_space_on_zero_score_content():
+    # No JD relevance at all, but budget to spare: fill_page packs anyway so the
+    # page is not left half-empty.
+    content = _content(jobs=[_job("j", "b1", "b2", "b3")])
+    scores = {"b1": 0.0, "b2": 0.0, "b3": 0.0}
+    sel = pack(content, scores, StubHeights(), CFG, budget=2.0)  # fill_page default
+    assert len(sel.exp_bullets.get("j", [])) == 2   # budget consumed by filler
+
+
+def test_fill_page_off_drops_irrelevant_content():
+    cfg = PackConfig(closeness_threshold=0.10, min_bullets_per_open_project=2,
+                     max_bullets_per_item=4, fill_page=False)
+    content = _content(jobs=[_job("j", "b1", "b2", "b3")])
+    scores = {"b1": 0.0, "b2": 0.0, "b3": 0.0}
+    sel = pack(content, scores, StubHeights(), cfg, budget=100.0)
+    assert sel.all_bullets() == []   # nothing relevant -> nothing packed
+
+
+def test_fill_page_prefers_relevant_content_first():
+    # Relevant bullet must be chosen before the zero-score filler.
+    content = _content(jobs=[_job("j", "b1", "b2", "b3")])
+    scores = {"b1": 0.0, "b2": 5.0, "b3": 0.0}
+    sel = pack(content, scores, StubHeights(), CFG, budget=1.0)  # room for one
+    assert sel.exp_bullets["j"] == ["b2"]   # relevance wins the single slot
+
+
+# --------------------------------------------------------------------------- #
 # breadth tie-break
 # --------------------------------------------------------------------------- #
 def test_breadth_prefers_opening_new_project_on_tie():

@@ -41,6 +41,11 @@ class Settings(_Base):
     closeness_threshold: float = Field(0.10, ge=0.0, le=1.0)
     min_bullets_per_open_project: int = Field(2, ge=1)
     max_bullets_per_item: int = Field(4, ge=1)
+    # When True (default) the packer fills any leftover page space with the
+    # best-remaining authored bullets even after the JD-relevant ones run out,
+    # so the page is never left half-empty. When False, content with no JD
+    # relevance is dropped and must be pinned to force in.
+    fill_page: bool = True
     llm: LLMSettings = Field(default_factory=LLMSettings)
 
 
