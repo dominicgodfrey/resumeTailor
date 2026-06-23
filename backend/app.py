@@ -190,7 +190,11 @@ def pdf_route():
     pdf = SESSION_BUILD / "resume.pdf"
     if not pdf.exists():
         raise HTTPException(status_code=404, detail="no compiled PDF yet; run /api/pack first")
-    return FileResponse(str(pdf), media_type="application/pdf", filename="resume.pdf")
+    # inline disposition so the frontend <iframe> renders it in place; an
+    # "attachment" (the FileResponse default when a filename is set) makes the
+    # browser download the file and leaves the preview pane blank.
+    return FileResponse(str(pdf), media_type="application/pdf", filename="resume.pdf",
+                        content_disposition_type="inline")
 
 
 @app.post("/api/export")
