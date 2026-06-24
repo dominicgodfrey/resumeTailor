@@ -41,8 +41,9 @@ class Settings(_Base):
     closeness_threshold: float = Field(0.10, ge=0.0, le=1.0)
     min_bullets_per_open_project: int = Field(2, ge=1)
     max_bullets_per_item: int = Field(4, ge=1)
-    # Most projects an auto-pack will open (the owner wants 3-4); the packer fills
-    # up to this many as room allows.
+    # Project count window (the owner wants 3-4, never fewer than 2): the packer
+    # always shows at least ``min_projects`` and at most ``max_projects``.
+    min_projects: int = Field(2, ge=0)
     max_projects: int = Field(4, ge=1)
     # Relevant-coursework line: how many lines it may grow to and the visible
     # character budget per line (mirrors packer.CHARS_PER_LINE).

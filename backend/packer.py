@@ -131,6 +131,7 @@ class PackConfig:
     closeness_threshold: float = 0.10
     min_bullets_per_open_project: int = 2   # default secondary floor for a project
     max_bullets_per_item: int = 4           # default secondary cap for a project
+    min_projects: int = 2                   # always show at least this many projects
     max_projects: int = 4                   # most projects an auto-pack will open
     fill_page: bool = True   # spend leftover budget on the best-remaining bullets
                              # even with no JD relevance (vs. dropping them)
@@ -268,6 +269,28 @@ def pack(
                 add_proj_bullet(b, pinned=False)
         else:
             add_proj_bullet(pick.bullet_ids[0], pinned=False)
+
+    # 3) Floor: always show at least ``min_projects``. Force-open the best
+    #    remaining eligible projects (those that can meet their own bullet floor),
+    #    ranked by floor-bundle score, ignoring budget — the verify/trim loop
+    #    enforces one-page fit without dropping below this floor.
+    if len(sel.open_projects) < config.min_projects:
+        def floor_bundle(pid: str, p: Project) -> list[str]:
+            return proj_pool.get(pid, [])[:_secondary_floor(p, config)]
+
+        eligible = [
+            (pid, p) for pid, p in projects.items()
+            if pid not in sel.open_projects and pid not in excludes
+            and len(proj_pool.get(pid, [])) >= _secondary_floor(p, config)
+        ]
+        eligible.sort(key=lambda t: (
+            -sum(scores.get(b, 0.0) for b in floor_bundle(*t)), t[0]))
+        for pid, p in eligible:
+            if len(sel.open_projects) >= config.min_projects:
+                break
+            open_project(pid, waived=False)
+            for b in floor_bundle(pid, p):
+                add_proj_bullet(b, pinned=False)
 
     return sel
 
@@ -448,6 +471,7 @@ def pack_and_verify(
         closeness_threshold=settings.closeness_threshold,
         min_bullets_per_open_project=settings.min_bullets_per_open_project,
         max_bullets_per_item=settings.max_bullets_per_item,
+        min_projects=settings.min_projects,
         max_projects=settings.max_projects,
         fill_page=settings.fill_page,
     )
@@ -511,7 +535,9 @@ def _trim_lowest(
             for bid in non_pinned:
                 candidates.append((scores.get(bid, 0.0) / max(heights.bullet(bid), 1e-9),
                                    "proj_bullet", bid))
-        if pid not in sel.pinned_projects:
+        # A project may be closed only if it isn't pinned and closing keeps the
+        # selection at/above the min_projects floor.
+        if pid not in sel.pinned_projects and len(sel.open_projects) > config.min_projects:
             score = sum(scores.get(b, 0.0) for b in ids)
             height = heights.open_project(pid) + sum(heights.bullet(b) for b in ids)
             candidates.append((score / max(height, 1e-9), "proj_close", pid))

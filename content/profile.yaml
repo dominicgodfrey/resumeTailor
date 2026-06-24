@@ -95,6 +95,7 @@ settings:
   closeness_threshold: 0.10
   min_bullets_per_open_project: 2   # default project secondary floor (per-item min_bullets overrides)
   max_bullets_per_item: 4           # default project secondary cap (per-item max_bullets overrides)
+  min_projects: 2                   # always show at least this many projects
   max_projects: 4                   # open at most this many projects (owner wants 3-4)
   coursework_max_lines: 2           # relevant-coursework line may grow to this many lines
   coursework_line_chars: 95         # ~visible characters per coursework line (width gauge)

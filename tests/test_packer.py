@@ -16,7 +16,7 @@ from backend.models import (  # noqa: E402
     Bullet, Content, Course, Job, NonTechExperience, Profile, Project,
 )
 from backend.packer import (  # noqa: E402
-    PackConfig, pack, selection_to_context,
+    PackConfig, pack, selection_to_context, _trim_lowest,
     select_coursework, _coursework_line_count, _shrink_coursework_to_lines, Selection,
 )
 
@@ -53,8 +53,10 @@ def _proj(pid: str, *bids: str, min_bullets=None, max_bullets=None) -> Project:
                    min_bullets=min_bullets, max_bullets=max_bullets)
 
 
+# Default test config disables the min_projects floor so the budget/cap/fill
+# tests below exercise pure packing mechanics; the floor has its own tests.
 CFG = PackConfig(closeness_threshold=0.10, min_bullets_per_open_project=2,
-                 max_bullets_per_item=4, max_projects=4)
+                 max_bullets_per_item=4, min_projects=0, max_projects=4)
 
 
 # --------------------------------------------------------------------------- #
@@ -116,6 +118,43 @@ def test_max_projects_caps_opened_projects():
     scores = {k: 1.0 for k in ["a1", "a2", "b1", "b2", "c1", "c2"]}
     sel = pack(content, scores, StubHeights(), cfg, budget=100.0)
     assert len(sel.open_projects) == 2   # third project blocked by the cap
+
+
+CFG_FLOOR = PackConfig(closeness_threshold=0.10, min_bullets_per_open_project=2,
+                       max_bullets_per_item=4, min_projects=2, max_projects=4)
+
+
+def test_min_projects_floor_forces_projects_even_with_zero_budget_and_score():
+    content = _content(projects=[_proj("p1", "a1", "a2"), _proj("p2", "b1", "b2"),
+                                 _proj("p3", "c1", "c2")])
+    scores = {k: 0.0 for k in ["a1", "a2", "b1", "b2", "c1", "c2"]}
+    sel = pack(content, scores, StubHeights(), CFG_FLOOR, budget=0.0)
+    assert len(sel.open_projects) == 2   # floor forces two open despite no budget
+
+
+def test_min_projects_floor_picks_highest_scoring_remaining():
+    content = _content(projects=[_proj("p1", "a1", "a2"), _proj("p2", "b1", "b2"),
+                                 _proj("p3", "c1", "c2")])
+    scores = {"a1": 0, "a2": 0, "b1": 1, "b2": 1, "c1": 2, "c2": 2}  # p3 > p2 > p1
+    sel = pack(content, scores, StubHeights(), CFG_FLOOR, budget=0.0)
+    assert set(sel.open_projects) == {"p3", "p2"}   # the two most relevant forced in
+
+
+def test_min_projects_floor_capped_by_available_projects():
+    content = _content(projects=[_proj("only", "x1", "x2")])
+    sel = pack(content, {"x1": 0, "x2": 0}, StubHeights(), CFG_FLOOR, budget=0.0)
+    assert sel.open_projects == ["only"]   # can't exceed what exists
+
+
+def test_trim_lowest_keeps_min_projects_but_trims_bullets():
+    projects = {"p1": _proj("p1", "a1", "a2", "a3"), "p2": _proj("p2", "b1", "b2", "b3")}
+    sel = Selection(open_projects=["p1", "p2"],
+                    proj_bullets={"p1": ["a1", "a2", "a3"], "p2": ["b1", "b2", "b3"]})
+    scores = {k: 1.0 for k in ["a1", "a2", "a3", "b1", "b2", "b3"]}
+    # 2 open == min 2: no project may close; a bullet above the floor is trimmed.
+    assert _trim_lowest(sel, scores, StubHeights(), projects, CFG_FLOOR) is True
+    assert len(sel.open_projects) == 2
+    assert sum(len(v) for v in sel.proj_bullets.values()) == 5   # one bullet gone, none closed
 
 
 # --------------------------------------------------------------------------- #
@@ -186,11 +225,11 @@ def test_exclude_vetoes_pin():
 # --------------------------------------------------------------------------- #
 def test_fill_page_off_drops_irrelevant_projects():
     cfg = PackConfig(closeness_threshold=0.10, min_bullets_per_open_project=2,
-                     max_bullets_per_item=4, max_projects=4, fill_page=False)
+                     max_bullets_per_item=4, min_projects=0, max_projects=4, fill_page=False)
     content = _content(projects=[_proj("p", "pb1", "pb2", "pb3")])
     scores = {"pb1": 0.0, "pb2": 0.0, "pb3": 0.0}
     sel = pack(content, scores, StubHeights(), cfg, budget=100.0)
-    assert sel.open_projects == []   # nothing relevant -> nothing packed
+    assert sel.open_projects == []   # nothing relevant + no floor -> nothing packed
 
 
 def test_fill_page_opens_irrelevant_project_as_filler():
