@@ -59,10 +59,14 @@ def test_content_view_shape(client):
     data = client.get("/api/content").json()
     assert data["name"]
     assert len(data["experience"]) == 3
-    assert len(data["projects"]) == 2
+    assert len(data["projects"]) == 4
     job = data["experience"][0]
     assert job["fixed_bullet"]
     assert "bullets" in job and "tier" in job["bullets"][0]
+    # New sections are exposed for the left pane.
+    assert data["coursework"] and "tags" in data["coursework"][0]
+    assert data["awards"]
+    assert data["nontechnical"] and data["nontechnical"][0]["role"]
 
 
 def test_score_baseline(client):
@@ -70,10 +74,10 @@ def test_score_baseline(client):
     assert r.status_code == 200
     body = r.json()
     assert body["llm_used"] is False
-    # The full-stack research bullet should score above zero for this JD.
-    assert body["bullets"]["ra-fullstack"]["pack_score"] > 0
-    # An irrelevant IT bullet should be zero.
-    assert body["bullets"]["it-maintain"]["pack_score"] == 0
+    # A Python-tagged experience bullet should score above zero for this JD.
+    assert body["bullets"]["thinkneuro-2"]["pack_score"] > 0
+    # A mobile/frontend bullet is irrelevant to this JD -> zero.
+    assert body["bullets"]["proj4-2"]["pack_score"] == 0
 
 
 def test_score_empty_jd_all_zero(client):
@@ -104,8 +108,8 @@ def test_pack_then_pdf(client):
 
 @needs_tectonic
 def test_pack_honors_exclude(client):
-    body = client.post("/api/pack", json={"jd_text": JD, "excludes": ["proj-gitlytics"]}).json()
-    assert "proj-gitlytics" not in body["selection"]["open_projects"]
+    body = client.post("/api/pack", json={"jd_text": JD, "excludes": ["proj-2"]}).json()
+    assert "proj-2" not in body["selection"]["open_projects"]
 
 
 @needs_tectonic
@@ -122,4 +126,4 @@ def test_export_writes_archive(client, tmp_path, monkeypatch):
     assert (folder / "jd.txt").read_text(encoding="utf-8") == JD
     tex = (folder / "resume.tex").read_text(encoding="utf-8")
     # A locked fixed bullet is always present, carried verbatim into the .tex.
-    assert "Developed a REST API using FastAPI and PostgreSQL" in tex
+    assert "top-level overview bullet spanning the 2 projects" in tex

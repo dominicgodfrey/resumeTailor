@@ -84,6 +84,7 @@ def export_selection(
             "experience": selection.exp_bullets,
             "open_projects": selection.open_projects,
             "project_bullets": selection.proj_bullets,
+            "coursework": selection.coursework,
         },
         "scores": {bid: round(scores.get(bid, 0.0), 4) for bid in selected},
     }

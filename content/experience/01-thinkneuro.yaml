@@ -1,0 +1,26 @@
+id: exp-thinkneuro
+company: "ThinkNeuro"
+title: "TODO: your role / title"
+tech: "TODO: tech stack"
+location: "Sacramento, CA"
+dates: "TODO: dates"
+# min/max are TOTAL bullets incl. this fixed one. Experience always shows every
+# authored bullet; min/max just bound how many you write (you listed 3-4 here).
+min_bullets: 3
+max_bullets: 4
+# Fixed top bullet: high-level overview of the 2 projects you worked on + stack.
+fixed_bullet: "TODO: top-level overview bullet spanning the 2 projects you worked on (system, stack, purpose)"
+tags: [python, ml, ai]
+bullets:
+  - id: thinkneuro-2
+    text: "TODO: tailored, more specific bullet 2"
+    tags: [python, machine learning]
+    tier: strong
+  - id: thinkneuro-3
+    text: "TODO: tailored, more specific bullet 3"
+    tags: [backend, api]
+    tier: strong
+  - id: thinkneuro-4
+    text: "TODO: tailored, more specific bullet 4"
+    tags: [data, sql]
+    tier: optional

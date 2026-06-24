@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from backend.models import Bullet, Content, Job, Profile, Project  # noqa: E402
+from backend.models import Bullet, Content, Course, Job, Profile, Project  # noqa: E402
 from backend.scoring import (  # noqa: E402
     BASE_WEIGHT,
     FREQ_BONUS,
@@ -21,6 +21,7 @@ from backend.scoring import (  # noqa: E402
     collect_content_tags,
     score,
     score_content,
+    score_coursework,
     shortlist,
 )
 
@@ -177,3 +178,22 @@ def test_empty_jd_scores_nothing():
     res = score(content, "")
     assert res.bullets["b"].raw == 0.0
     assert shortlist(res, 5) == []
+
+
+# --------------------------------------------------------------------------- #
+# Coursework scoring
+# --------------------------------------------------------------------------- #
+def test_score_coursework_ranks_relevant_first_keeps_all():
+    profile = Profile(name="T", coursework=[
+        Course(name="Operating Systems", tags=["operating systems"]),
+        Course(name="Machine Learning", tags=["machine learning", "ml"]),
+        Course(name="Art History", tags=["art history"]),
+    ])
+    content = Content(profile=profile, aliases=ALIASES)
+    # collect_content_tags now includes coursework tags, so the JD is searched
+    # for "machine learning"; otherwise a course could never score.
+    jd = analyze_jd("Requirements:\nMachine Learning", ALIASES, collect_content_tags(content))
+    ranked = score_coursework(content, jd)
+    names = [n for n, _ in ranked]
+    assert names[0] == "Machine Learning" and ranked[0][1] > 0   # relevant first
+    assert set(names) == {"Operating Systems", "Machine Learning", "Art History"}  # none dropped

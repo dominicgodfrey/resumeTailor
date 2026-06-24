@@ -27,6 +27,7 @@ from backend.content import ContentError, load_content
 from backend.llm import score_blended
 from backend.models import Content
 from backend.packer import pack_and_verify
+from backend.scoring import score_coursework
 from backend.archive import export_selection
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -88,7 +89,10 @@ def _content_view(content: Content) -> dict:
         "name": content.profile.name,
         "contacts": [c.model_dump() for c in content.profile.contacts],
         "education": [e.model_dump() for e in content.profile.education],
+        "coursework": [c.model_dump() for c in content.profile.coursework],
+        "awards": list(content.profile.awards),
         "skills": [s.model_dump() for s in content.profile.skills],
+        "nontechnical": [n.model_dump() for n in content.profile.nontechnical],
         "experience": [item(j, "job") for j in content.experience],
         "projects": [item(p, "project") for p in content.projects],
         "settings": content.profile.settings.model_dump(),
@@ -120,7 +124,9 @@ def _run_pack(content: Content, req: PackRequest):
     """Score (baseline + LLM blend) then auto-pack with a real compile."""
     outcome = score_blended(content, req.jd_text, content.profile.settings)
     scores = {bid: bs.pack_score for bid, bs in outcome.result.bullets.items()}
-    packed = pack_and_verify(content, scores, pins=req.pins, excludes=req.excludes,
+    coursework = score_coursework(content, outcome.result.jd)
+    packed = pack_and_verify(content, scores, coursework=coursework,
+                             pins=req.pins, excludes=req.excludes,
                              build_dir=SESSION_BUILD)
     return outcome, scores, packed
 
@@ -142,6 +148,7 @@ def _selection_view(content: Content, packed) -> dict:
             "experience": packed.selection.exp_bullets,
             "open_projects": packed.selection.open_projects,
             "project_bullets": packed.selection.proj_bullets,
+            "coursework": packed.selection.coursework,
         },
     }
 

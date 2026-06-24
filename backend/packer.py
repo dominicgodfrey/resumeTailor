@@ -93,6 +93,7 @@ class Selection:
     exp_bullets: dict[str, list[str]] = field(default_factory=dict)   # job_id -> bullet ids
     open_projects: list[str] = field(default_factory=list)            # in open order
     proj_bullets: dict[str, list[str]] = field(default_factory=dict)  # project_id -> bullet ids
+    coursework: list[str] = field(default_factory=list)              # chosen course names, in order
     pinned_bullets: set[str] = field(default_factory=set)
     pinned_projects: set[str] = field(default_factory=set)            # forced-open, min waived
 
@@ -128,10 +129,23 @@ class Move:
 @dataclass
 class PackConfig:
     closeness_threshold: float = 0.10
-    min_bullets_per_open_project: int = 2
-    max_bullets_per_item: int = 4
+    min_bullets_per_open_project: int = 2   # default secondary floor for a project
+    max_bullets_per_item: int = 4           # default secondary cap for a project
+    max_projects: int = 4                   # most projects an auto-pack will open
     fill_page: bool = True   # spend leftover budget on the best-remaining bullets
                              # even with no JD relevance (vs. dropping them)
+
+
+def _secondary_floor(p: Project, config: PackConfig) -> int:
+    """Minimum *secondary* bullets a shown project must keep. Per-item
+    ``min_bullets`` is a TOTAL (incl. the fixed bullet), so subtract 1."""
+    return (p.min_bullets - 1) if p.min_bullets is not None else config.min_bullets_per_open_project
+
+
+def _secondary_cap(p: Project, config: PackConfig) -> int:
+    """Maximum *secondary* bullets a project may show. Per-item ``max_bullets``
+    is a TOTAL (incl. the fixed bullet), so subtract 1."""
+    return (p.max_bullets - 1) if p.max_bullets is not None else config.max_bullets_per_item
 
 
 def _ordered_pool(bullets, scores: dict[str, float], excludes: set[str]) -> list[str]:
@@ -156,19 +170,21 @@ def pack(
 
     jobs: dict[str, Job] = {j.id: j for j in content.experience}
     projects: dict[str, Project] = {p.id: p for p in content.projects}
-    job_pool = {jid: _ordered_pool(j.bullets, scores, excludes) for jid, j in jobs.items()}
     proj_pool = {pid: _ordered_pool(p.bullets, scores, excludes) for pid, p in projects.items()}
 
-    owner_of: dict[str, tuple[str, str]] = {}  # bullet_id -> (kind, item_id)
-    for jid, j in jobs.items():
-        for b in j.bullets:
-            owner_of[b.id] = ("job", jid)
+    owner_of: dict[str, str] = {}  # project bullet_id -> project_id
     for pid, p in projects.items():
         for b in p.bullets:
-            owner_of[b.id] = ("project", pid)
+            owner_of[b.id] = pid
 
     sel = Selection()
     used = 0.0
+
+    # 0) Experience is always shown in full (every authored bullet, authored
+    #    order). It lives in the locked baseline, so it costs nothing here — we
+    #    only record it so the rendered context carries it.
+    for job in content.experience:
+        sel.exp_bullets[job.id] = [b.id for b in job.bullets]
 
     def open_project(pid: str, waived: bool) -> None:
         if pid in sel.open_projects:
@@ -180,15 +196,12 @@ def pack(
         nonlocal used
         used += heights.open_project(pid)
 
-    def add_bullet(bid: str, pinned: bool) -> None:
+    def add_proj_bullet(bid: str, pinned: bool) -> None:
         nonlocal used
-        kind, iid = owner_of[bid]
-        if kind == "job":
-            lst = sel.exp_bullets.setdefault(iid, [])
-        else:
-            if iid not in sel.open_projects:
-                open_project(iid, waived=pinned)
-            lst = sel.proj_bullets.setdefault(iid, [])
+        pid = owner_of[bid]
+        if pid not in sel.open_projects:
+            open_project(pid, waived=pinned)
+        lst = sel.proj_bullets.setdefault(pid, [])
         if bid in lst:
             return
         lst.append(bid)
@@ -196,32 +209,23 @@ def pack(
             sel.pinned_bullets.add(bid)
         used += heights.bullet(bid)
 
-    # 1) Pins: force-open pinned projects, then force-add pinned bullets. Excludes
-    #    are a hard veto even over a pin (contradictory input -> safe default).
+    # 1) Pins: force-open pinned projects, then force-add pinned project bullets.
+    #    Excludes are a hard veto even over a pin (contradictory input -> safe
+    #    default). Pinned experience bullets are moot — experience is always full.
     for pid in [p for p in projects if p in pins and p not in excludes]:
         open_project(pid, waived=True)
     for bid in sorted(b for b in pins if b in owner_of and b not in excludes):
-        add_bullet(bid, pinned=True)
+        add_proj_bullet(bid, pinned=True)
 
-    # 2) Greedy fill.
-    def chosen_count(kind: str, iid: str) -> int:
-        return len(sel.exp_bullets.get(iid, []) if kind == "job" else sel.proj_bullets.get(iid, []))
+    # 2) Greedy fill — projects only (experience never competes for budget).
+    def chosen_count(pid: str) -> int:
+        return len(sel.proj_bullets.get(pid, []))
 
     def generate() -> list[Move]:
         moves: list[Move] = []
-        # next-best bullet for each job
-        for jid, pool in job_pool.items():
-            if chosen_count("job", jid) >= config.max_bullets_per_item:
-                continue
-            chosen = set(sel.exp_bullets.get(jid, []))
-            nxt = next((b for b in pool if b not in chosen), None)
-            if nxt is None:
-                continue
-            moves.append(Move("exp_bullet", jid, [nxt], scores.get(nxt, 0.0),
-                              heights.bullet(nxt), dev=len(chosen)))
-        # next-best bullet for each open project
+        # next-best bullet for each open project (respect its secondary cap)
         for pid in sel.open_projects:
-            if chosen_count("project", pid) >= config.max_bullets_per_item:
+            if chosen_count(pid) >= _secondary_cap(projects[pid], config):
                 continue
             chosen = set(sel.proj_bullets.get(pid, []))
             nxt = next((b for b in proj_pool.get(pid, []) if b not in chosen), None)
@@ -229,18 +233,20 @@ def pack(
                 continue
             moves.append(Move("proj_bullet", pid, [nxt], scores.get(nxt, 0.0),
                               heights.bullet(nxt), dev=len(chosen)))
-        # open a new eligible project (bundle of min_bullets)
-        for pid, p in projects.items():
-            if pid in sel.open_projects or pid in excludes:
-                continue
-            pool = proj_pool.get(pid, [])
-            need = config.min_bullets_per_open_project
-            if len(pool) < need:
-                continue  # can't satisfy min-open (pinned opens were handled above)
-            bundle = pool[:need]
-            score = sum(scores.get(b, 0.0) for b in bundle)
-            height = heights.open_project(pid) + sum(heights.bullet(b) for b in bundle)
-            moves.append(Move("proj_open", pid, bundle, score, height, dev=0))
+        # open a new eligible project (bundle of its secondary floor), capped by
+        # max_projects so an auto-pack stays within the intended 3-4 projects.
+        if len(sel.open_projects) < config.max_projects:
+            for pid, p in projects.items():
+                if pid in sel.open_projects or pid in excludes:
+                    continue
+                pool = proj_pool.get(pid, [])
+                need = _secondary_floor(p, config)
+                if len(pool) < need:
+                    continue  # can't satisfy min-open (pinned opens were handled above)
+                bundle = pool[:need]
+                score = sum(scores.get(b, 0.0) for b in bundle)
+                height = heights.open_project(pid) + sum(heights.bullet(b) for b in bundle)
+                moves.append(Move("proj_open", pid, bundle, score, height, dev=0))
         return moves
 
     while True:
@@ -259,9 +265,9 @@ def pack(
         if pick.kind == "proj_open":
             open_project(pick.item_id, waived=False)
             for b in pick.bullet_ids:
-                add_bullet(b, pinned=False)
+                add_proj_bullet(b, pinned=False)
         else:
-            add_bullet(pick.bullet_ids[0], pinned=False)
+            add_proj_bullet(pick.bullet_ids[0], pinned=False)
 
     return sel
 
@@ -304,8 +310,8 @@ def selection_to_context(content: Content, sel: Selection) -> dict:
             bullets.append(job.fixed_bullet)
         bullets += [text_by_id[b] for b in ordered(job.id, sel.exp_bullets.get(job.id, []))]
         experience.append({
-            "title": job.title, "company": job.company, "location": job.location,
-            "dates": job.dates, "bullets": bullets,
+            "title": job.title, "company": job.company, "tech": job.tech,
+            "location": job.location, "dates": job.dates, "bullets": bullets,
         })
 
     projects = []
@@ -320,13 +326,20 @@ def selection_to_context(content: Content, sel: Selection) -> dict:
             "name": p.name, "tech": p.tech, "dates": p.dates, "bullets": bullets,
         })
 
+    # Relevant-coursework line(s): names copied verbatim, ordered as chosen.
+    name_set = {c.name for c in profile.coursework}
+    coursework = [n for n in sel.coursework if n in name_set]
+
     return {
         "name": profile.name,
         "contacts": [c.model_dump() for c in profile.contacts],
         "education": [e.model_dump() for e in profile.education],
+        "coursework": coursework,
         "experience": experience,
         "projects": projects,
+        "awards": list(profile.awards),
         "skills": [s.model_dump() for s in profile.skills],
+        "nontechnical": [n.model_dump() for n in profile.nontechnical],
     }
 
 
@@ -342,71 +355,157 @@ class PackResult:
     status: str
 
 
-def _locked_context(content: Content) -> dict:
-    return selection_to_context(content, Selection())
+# --------------------------------------------------------------------------- #
+# Relevant-coursework selection (tailored, but always present)
+# --------------------------------------------------------------------------- #
+_COURSEWORK_LABEL = "Relevant Coursework: "
+
+
+def _coursework_line_count(names: list[str], line_chars: int) -> int:
+    """Greedy estimate of how many lines the coursework line wraps to, counting
+    the leading label on line 1 and ``, `` separators between names."""
+    if not names:
+        return 0
+    lines = 1
+    cur = len(_COURSEWORK_LABEL)
+    for i, name in enumerate(names):
+        add = len(name) + (2 if i > 0 else 0)  # ", " separator
+        if i > 0 and cur + add > line_chars:
+            lines += 1
+            cur = len(name)
+        else:
+            cur += add
+    return lines
+
+
+def select_coursework(ranked: list[tuple[str, float]], settings) -> list[str]:
+    """Choose which courses to show, in order. Relevant (score > 0) courses fill
+    up to ``coursework_max_lines``; with no JD signal we show a single default
+    line so the section is never empty. Names are returned verbatim."""
+    if not ranked:
+        return []
+    relevant = [name for name, score in ranked if score > 0]
+    line_chars = settings.coursework_line_chars
+    if relevant:
+        pool, max_lines = relevant, max(1, settings.coursework_max_lines)
+    else:
+        pool, max_lines = [name for name, _ in ranked], 1
+    chosen: list[str] = []
+    for name in pool:
+        if _coursework_line_count(chosen + [name], line_chars) > max_lines:
+            break
+        chosen.append(name)
+    if not chosen and pool:
+        chosen = [pool[0]]
+    return chosen
+
+
+def _shrink_coursework_to_lines(sel: Selection, line_chars: int, target_lines: int) -> bool:
+    """Drop trailing courses until the line fits ``target_lines``. Returns True
+    if anything was removed."""
+    changed = False
+    while sel.coursework and _coursework_line_count(sel.coursework, line_chars) > target_lines:
+        sel.coursework.pop()
+        changed = True
+    return changed
+
+
+# --------------------------------------------------------------------------- #
+# Compile-verified driver
+# --------------------------------------------------------------------------- #
+def _experience_selection(content: Content) -> Selection:
+    """A selection that shows every experience job with all its authored bullets
+    — experience is always present, never score-trimmed."""
+    sel = Selection()
+    for job in content.experience:
+        sel.exp_bullets[job.id] = [b.id for b in job.bullets]
+    return sel
+
+
+def _locked_context(content: Content, coursework: Iterable[str] = ()) -> dict:
+    sel = _experience_selection(content)
+    sel.coursework = list(coursework)
+    return selection_to_context(content, sel)
 
 
 def pack_and_verify(
     content: Content,
     scores: dict[str, float],
+    coursework: Iterable[tuple[str, float]] = (),
     pins: Iterable[str] = (),
     excludes: Iterable[str] = (),
     *,
     build_dir: Path | None = None,
     max_compiles: int = 8,
 ) -> PackResult:
-    """Estimate a packing, then confirm it with real compiles: trim the
-    lowest-density add-on until it fits one page. Bounded by ``max_compiles``."""
+    """Estimate a packing, then confirm it with real compiles. The always-shown
+    baseline is header + education + a tailored coursework line + all experience;
+    the packer spends the leftover page on projects. On overflow we trim (drop the
+    2nd coursework line, then the lowest-density project add-on, then coursework
+    tail). Bounded by ``max_compiles``."""
     settings = content.profile.settings
     config = PackConfig(
         closeness_threshold=settings.closeness_threshold,
         min_bullets_per_open_project=settings.min_bullets_per_open_project,
         max_bullets_per_item=settings.max_bullets_per_item,
+        max_projects=settings.max_projects,
         fill_page=settings.fill_page,
     )
     heights = EstimatedHeights(content)
+    projects = {p.id: p for p in content.projects}
+    course_names = select_coursework(list(coursework), settings)
+    line_chars = settings.coursework_line_chars
 
-    # Baseline compile = locked content only -> how much room is left.
-    base_fit = compile_and_measure(_locked_context(content), build_dir=build_dir)
+    # Baseline = always-shown content (incl. all experience + coursework), no
+    # projects -> how much room is left for projects.
+    base_fit = compile_and_measure(_locked_context(content, course_names), build_dir=build_dir)
     compiles = 1
-    if not base_fit.fits:
-        return PackResult(Selection(), base_fit, 0.0, compiles,
-                          "OVERFLOW: locked content alone exceeds one page")
-    remaining_lines = ((base_fit.remaining_pt or 0.0) / LINE_PT) - SAFETY_LINES
-    budget = max(0.0, remaining_lines)
+    if base_fit.fits:
+        remaining_lines = ((base_fit.remaining_pt or 0.0) / LINE_PT) - SAFETY_LINES
+        budget = max(0.0, remaining_lines)
+    else:
+        budget = 0.0  # experience+coursework already tight; trim loop will adjust
 
     sel = pack(content, scores, heights, config, budget, pins=pins, excludes=excludes)
+    sel.coursework = list(course_names)
 
     # Verify + trim loop.
     fit = compile_and_measure(selection_to_context(content, sel), build_dir=build_dir)
     compiles += 1
     while not fit.fits and compiles < max_compiles:
-        if not _trim_lowest(sel, scores, heights):
+        if _shrink_coursework_to_lines(sel, line_chars, 1):
+            pass
+        elif _trim_lowest(sel, scores, heights, projects, config):
+            pass
+        elif sel.coursework:
+            sel.coursework.pop()
+        else:
             break
         fit = compile_and_measure(selection_to_context(content, sel), build_dir=build_dir)
         compiles += 1
 
-    status = fit.status if fit.fits else "OVERFLOW after trimming (check pins/locked content)"
+    status = fit.status if fit.fits else (
+        "OVERFLOW after trimming (experience + coursework may exceed one page)")
     return PackResult(sel, fit, sel.total_score(scores), compiles, status)
 
 
-def _trim_lowest(sel: Selection, scores: dict[str, float], heights: Heights) -> bool:
-    """Remove the single lowest-density removable add-on. Pinned content and the
-    min-open floor are respected (a project at its min is removed whole rather
-    than dipping below). Returns False when nothing can be trimmed."""
+def _trim_lowest(
+    sel: Selection,
+    scores: dict[str, float],
+    heights: Heights,
+    projects: dict[str, Project],
+    config: PackConfig,
+) -> bool:
+    """Remove the single lowest-density removable project add-on. Experience is
+    locked (never trimmed); pinned content and each project's secondary floor are
+    respected (a project at its min is removed whole rather than dipping below).
+    Returns False when nothing can be trimmed."""
     candidates: list[tuple[float, str, str]] = []  # (density, kind, key)
-
-    for jid, ids in sel.exp_bullets.items():
-        for bid in ids:
-            if bid in sel.pinned_bullets:
-                continue
-            candidates.append((scores.get(bid, 0.0) / max(heights.bullet(bid), 1e-9),
-                               "exp_bullet", bid))
 
     for pid in sel.open_projects:
         ids = sel.proj_bullets.get(pid, [])
         non_pinned = [b for b in ids if b not in sel.pinned_bullets]
-        floor = 0 if pid in sel.pinned_projects else 2
+        floor = 0 if pid in sel.pinned_projects else _secondary_floor(projects[pid], config)
         # individually removable only if it keeps the project at/above its floor
         if len(ids) - 1 >= floor:
             for bid in non_pinned:
@@ -422,12 +521,7 @@ def _trim_lowest(sel: Selection, scores: dict[str, float], heights: Heights) -> 
     candidates.sort(key=lambda c: (c[0], c[2]))
     _density, kind, key = candidates[0]
 
-    if kind == "exp_bullet":
-        for ids in sel.exp_bullets.values():
-            if key in ids:
-                ids.remove(key)
-                return True
-    elif kind == "proj_bullet":
+    if kind == "proj_bullet":
         for ids in sel.proj_bullets.values():
             if key in ids:
                 ids.remove(key)

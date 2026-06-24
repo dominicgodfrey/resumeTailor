@@ -1,0 +1,17 @@
+id: proj-2
+name: "TODO: Project Two"
+tech: "TODO: tech stack"
+dates: "TODO: dates"
+min_bullets: 2
+max_bullets: 3
+fixed_bullet: "TODO: top-level impact statement for project two"
+tags: [react, frontend, fullstack]
+bullets:
+  - id: proj2-2
+    text: "TODO: more specific, tailored bullet"
+    tags: [react, frontend]
+    tier: strong
+  - id: proj2-3
+    text: "TODO: more specific, tailored bullet"
+    tags: [api, backend]
+    tier: optional

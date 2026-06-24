@@ -104,7 +104,7 @@
 \end{center}
 
 %----------- EDUCATION -----------
-((* if education *))
+((* if education or coursework *))
 \section{Education}
   \resumeSubHeadingListStart
 ((* for e in education *))
@@ -112,17 +112,22 @@
       {((( e.school )))}{((( e.location )))}
       {((( e.degree )))}{((( e.dates )))}
 ((* endfor *))
+((* if coursework *))
+    \item\small{\textbf{Relevant Coursework}: ((( coursework|join(', ') )))}
+((* endif *))
   \resumeSubHeadingListEnd
 ((* endif *))
 
-%----------- EXPERIENCE -----------
+%----------- TECHNICAL EXPERIENCE -----------
 ((* if experience *))
-\section{Experience}
+\section{Technical Experience}
   \resumeSubHeadingListStart
 ((* for j in experience *))
-    \resumeSubheading
-      {((( j.title )))}{((( j.dates )))}
-      {((( j.company )))}{((( j.location )))}
+    \vspace{-2pt}\item
+      \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+        \textbf{((( j.company )))}((* if j.get('tech') *)) $|$ \emph{((( j.tech )))}((* endif *)) & ((( j.dates ))) \\
+        \textit{\small ((( j.title )))} & \textit{\small ((( j.location )))} \\
+      \end{tabular*}\vspace{-7pt}
       \resumeItemListStart
 ((* for b in j.bullets *))
         \resumeItem{((( b )))}
@@ -148,6 +153,16 @@
   \resumeSubHeadingListEnd
 ((* endif *))
 
+%----------- AWARDS & CERTIFICATIONS -----------
+((* if awards *))
+\section{Awards \& Certifications}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     ((( awards|join(' $|$ ') )))
+    }}
+ \end{itemize}
+((* endif *))
+
 %----------- TECHNICAL SKILLS -----------
 ((* if skills *))
 \section{Technical Skills}
@@ -158,6 +173,17 @@
 ((* endfor *))
     }}
  \end{itemize}
+((* endif *))
+
+%----------- NON-TECHNICAL EXPERIENCE -----------
+((* if nontechnical *))
+\section{Non-technical Experience}
+  \resumeSubHeadingListStart
+((* for n in nontechnical *))
+    \resumeProjectHeading
+      {\textbf{((( n.role )))}, ((( n.organization )))((* if n.get('location') *)), ((( n.location )))((* endif *))((* if n.get('note') *)) --- \emph{((( n.note )))}((* endif *))}{((( n.dates )))}
+((* endfor *))
+  \resumeSubHeadingListEnd
 ((* endif *))
 
 \zsavepos{rt_end}

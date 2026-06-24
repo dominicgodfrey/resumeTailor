@@ -1,0 +1,21 @@
+id: exp-beal-house
+company: "Beal House"
+title: "TODO: your role / title"
+tech: "TODO: tech stack"
+location: "Littleton, NH"
+dates: "TODO: dates"
+# You listed 2-3 total bullets here (incl. the fixed one).
+min_bullets: 2
+max_bullets: 3
+# Fixed top bullet: high-level overview of the overall system.
+fixed_bullet: "TODO: top-level overview bullet describing the overall system (architecture, stack, purpose)"
+tags: [fullstack, web]
+bullets:
+  - id: beal-2
+    text: "TODO: tailored, more specific bullet 2"
+    tags: [frontend, react]
+    tier: strong
+  - id: beal-3
+    text: "TODO: tailored, more specific bullet 3"
+    tags: [backend, api]
+    tier: optional

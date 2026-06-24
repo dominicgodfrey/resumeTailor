@@ -61,12 +61,16 @@ def canonicalize(term: str, canonical_map: dict[str, str]) -> str:
 
 
 def collect_content_tags(content: Content) -> set[str]:
-    """Every tag used anywhere in the library (item-level and bullet-level)."""
+    """Every tag used anywhere in the library (item-level, bullet-level, and
+    coursework). Coursework tags are included so the JD analysis also searches for
+    course-relevant terms — otherwise a course could never score."""
     tags: set[str] = set()
     for item in (*content.experience, *content.projects):
         tags.update(item.tags)
         for b in item.bullets:
             tags.update(b.tags)
+    for course in content.profile.coursework:
+        tags.update(course.tags)
     return tags
 
 
@@ -254,6 +258,23 @@ def score_content(content: Content, jd: JDAnalysis) -> ScoreResult:
         for b in result.bullets.values():
             b.normalized = b.raw / max_raw
     return result
+
+
+def score_coursework(content: Content, jd: JDAnalysis) -> list[tuple[str, float]]:
+    """Rank relevant-coursework entries by JD relevance using the same
+    deterministic, alias-aware tag scorer as bullets/items. Returns
+    ``(course_name, score)`` sorted by score desc, then authored order for stable
+    ties. Baseline only — no LLM is needed for a short coursework line.
+
+    The course *names* are returned verbatim; only their tags drive the score.
+    """
+    canonical_map = build_canonical_map(content.aliases)
+    ranked: list[tuple[int, str, float]] = []
+    for idx, course in enumerate(content.profile.coursework):
+        raw, _matched = _score_tags(course.tags, jd, canonical_map)
+        ranked.append((idx, course.name, raw))
+    ranked.sort(key=lambda c: (-c[2], c[0]))
+    return [(name, score) for _idx, name, score in ranked]
 
 
 def shortlist(result: ScoreResult, n: int) -> list[str]:

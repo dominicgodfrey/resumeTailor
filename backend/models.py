@@ -41,6 +41,13 @@ class Settings(_Base):
     closeness_threshold: float = Field(0.10, ge=0.0, le=1.0)
     min_bullets_per_open_project: int = Field(2, ge=1)
     max_bullets_per_item: int = Field(4, ge=1)
+    # Most projects an auto-pack will open (the owner wants 3-4); the packer fills
+    # up to this many as room allows.
+    max_projects: int = Field(4, ge=1)
+    # Relevant-coursework line: how many lines it may grow to and the visible
+    # character budget per line (mirrors packer.CHARS_PER_LINE).
+    coursework_max_lines: int = Field(2, ge=1)
+    coursework_line_chars: int = Field(95, ge=1)
     # When True (default) the packer fills any leftover page space with the
     # best-remaining authored bullets even after the JD-relevant ones run out,
     # so the page is never left half-empty. When False, content with no JD
@@ -69,6 +76,25 @@ class SkillCategory(_Base):
     items: str  # raw LaTeX string, e.g. "Python, C/C++, SQL (Postgres)"
 
 
+class Course(_Base):
+    """A relevant-coursework entry. ``name`` is shown verbatim; ``tags`` are
+    invisible scoring metadata so the line can be re-ordered/trimmed per JD."""
+
+    name: str
+    tags: list[str] = Field(default_factory=list)
+
+
+class NonTechExperience(_Base):
+    """A compact non-technical / leadership entry. Always shown (locked), no
+    bullets — just a single heading row."""
+
+    role: str
+    organization: str
+    location: str = ""
+    dates: str = ""
+    note: str | None = None
+
+
 # --------------------------------------------------------------------------- #
 # Scored content
 # --------------------------------------------------------------------------- #
@@ -93,12 +119,18 @@ class Job(_Base):
     id: str
     company: str
     title: str
+    tech: str | None = None  # tech-stack line shown in the job heading
     location: str = ""
     dates: str = ""
     link: str | None = None
     fixed_bullet: str | None = None  # always shown first when the job appears
     bullets: list[Bullet] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)  # item-level tags
+    # Per-item bullet counts (TOTAL, including the fixed top bullet). None falls
+    # back to the global settings. Experience always shows every authored bullet;
+    # these mainly bound authoring.
+    min_bullets: int | None = Field(default=None, ge=1)
+    max_bullets: int | None = Field(default=None, ge=1)
 
     @field_validator("bullets")
     @classmethod
@@ -119,6 +151,10 @@ class Project(_Base):
     fixed_bullet: str | None = None
     bullets: list[Bullet] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
+    # Per-item bullet counts (TOTAL, including the fixed top bullet). None falls
+    # back to the global settings; secondary floor = min-1, secondary cap = max-1.
+    min_bullets: int | None = Field(default=None, ge=1)
+    max_bullets: int | None = Field(default=None, ge=1)
 
     @field_validator("bullets")
     @classmethod
@@ -137,8 +173,10 @@ class Profile(_Base):
     name: str
     contacts: list[Contact] = Field(default_factory=list)
     education: list[Education] = Field(default_factory=list)
+    coursework: list[Course] = Field(default_factory=list)
     awards: list[str] = Field(default_factory=list)
     skills: list[SkillCategory] = Field(default_factory=list)
+    nontechnical: list[NonTechExperience] = Field(default_factory=list)
     settings: Settings = Field(default_factory=Settings)
 
 

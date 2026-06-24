@@ -1,45 +1,103 @@
 # Locked header/footer content + tunable settings.
-# This is SEED data (Jake Gutierrez's sample resume) — replace the values with
-# your own. Bullet/skill text is treated as raw LaTeX (escape & as \&, etc.).
-name: "Jake Ryan"
+# PLACEHOLDERS: name + contacts + skill items + non-technical dates are stubs for
+# the owner to overwrite. Education / coursework / awards are real.
+# Bullet/skill text is treated as raw LaTeX (escape & as \&, etc.).
+name: "Your Name"   # TODO: replace with your name
 
+# Header line, left -> right: phone, email, github, portfolio, linkedin.
 contacts:
-  - text: "123-456-7890"
-  - text: "jake@su.edu"
-    href: "mailto:jake@su.edu"
-  - text: "linkedin.com/in/jake"
-    href: "https://linkedin.com/in/jake"
-  - text: "github.com/jake"
-    href: "https://github.com/jake"
+  - text: "000-000-0000"                       # TODO: phone
+  - text: "you@example.com"                     # TODO: email
+    href: "mailto:you@example.com"
+  - text: "github.com/yourhandle"               # TODO: github
+    href: "https://github.com/yourhandle"
+  - text: "yoursite.com"                        # TODO: portfolio website
+    href: "https://yoursite.com"
+  - text: "linkedin.com/in/yourhandle"          # TODO: linkedin
+    href: "https://linkedin.com/in/yourhandle"
 
 education:
-  - school: "Southwestern University"
-    location: "Georgetown, TX"
-    degree: "Bachelor of Arts in Computer Science, Minor in Business"
-    dates: "Aug. 2018 -- May 2021"
-  - school: "Blinn College"
-    location: "Bryan, TX"
-    degree: "Associate's in Liberal Arts"
-    dates: "Aug. 2014 -- May 2018"
+  - school: "Brandeis University"
+    location: "Waltham, MA"
+    degree: "B.S. in Computer Science, Minors in Psychology and Philosophy"
+    dates: "Expected May 2027"
 
-awards: []
+# Relevant coursework — score-governed: the app reorders/trims these per JD and
+# shows the top ones on 1 line (2 if many are relevant + there's room). Course
+# NAMES are shown verbatim; `tags` are invisible scoring metadata (terms a JD
+# might use). Edit names/tags freely; nothing here is ever rewritten by a model.
+coursework:
+  - name: "Machine Learning"
+    tags: ["machine learning", "ml", "ai"]
+  - name: "NVIDIA Deep Learning (Neural Networks)"
+    tags: ["deep learning", "neural networks", "machine learning", "ml", "ai"]
+  - name: "Data Structures and Algorithms"
+    tags: ["data structures", "algorithms"]
+  - name: "Operating Systems"
+    tags: ["operating systems", "systems"]
+  - name: "Computer Security"
+    tags: ["security", "cybersecurity", "computer security"]
+  - name: "Computer Networking"
+    tags: ["networking", "computer networks"]
+  - name: "Relational Databases (SQL)"
+    tags: ["sql", "postgres", "databases", "relational database"]
+  - name: "Web Development"
+    tags: ["web development", "frontend", "fullstack", "react"]
+  - name: "Mobile App Development"
+    tags: ["mobile", "mobile development", "ios", "android"]
+  - name: "Linear Algebra"
+    tags: ["linear algebra", "math"]
+  - name: "Probability and Statistics"
+    tags: ["statistics", "probability", "math"]
+  - name: "Discrete Mathematics"
+    tags: ["discrete math", "math"]
 
-# Static, locked Technical Skills block (never score-governed).
+# Static, locked. Shown as one inline line under "Awards & Certifications".
+awards:
+  - "Dean's List"
+  - "DeisHacks 2026"
+  - "Claude Code Certification"
+  - "SQL Certification"
+  - "OpenAI Professional Certification"
+
+# Static, locked Technical Skills block (never score-governed). Keep each to 1 line.
 skills:
   - category: "Languages"
-    items: "Java, Python, C/C++, SQL (Postgres), JavaScript, HTML/CSS, R"
-  - category: "Frameworks"
-    items: "React, Node.js, Flask, JUnit, WordPress, Material-UI, FastAPI"
-  - category: "Developer Tools"
-    items: "Git, Docker, TravisCI, Google Cloud Platform, VS Code, IntelliJ"
-  - category: "Libraries"
-    items: "pandas, NumPy, Matplotlib"
+    items: "TODO: e.g. Python, Java, JavaScript, TypeScript, C/C++, SQL"
+  - category: "Tools"
+    items: "TODO: e.g. Git, Docker, AWS, VS Code, Linux"
+  - category: "Frameworks/Databases"
+    items: "TODO: e.g. React, Node.js, FastAPI, Flask, PostgreSQL, MongoDB"
+  - category: "Soft"
+    items: "TODO: e.g. Leadership, Communication, Collaboration"
+
+# Static, locked. Compact one-row-per-entry section at the very bottom.
+nontechnical:
+  - role: "Treasurer"
+    organization: "Sigma Alpha Mu"
+    location: "Waltham, MA"
+    dates: "TODO: dates"
+  - role: "Admissions Ambassador"
+    organization: "Brandeis University"
+    location: "Waltham, MA"
+    dates: "TODO: dates"
+  - role: "Operations Manager"
+    organization: "Junbi"
+    location: "Princeton, NJ"
+    dates: "TODO: dates"
+  - role: "Sales Associate"
+    organization: "Vans"
+    location: "TODO: location"
+    dates: "TODO: dates"
 
 settings:
   page_target: 1
   closeness_threshold: 0.10
-  min_bullets_per_open_project: 2
-  max_bullets_per_item: 4
+  min_bullets_per_open_project: 2   # default project secondary floor (per-item min_bullets overrides)
+  max_bullets_per_item: 4           # default project secondary cap (per-item max_bullets overrides)
+  max_projects: 4                   # open at most this many projects (owner wants 3-4)
+  coursework_max_lines: 2           # relevant-coursework line may grow to this many lines
+  coursework_line_chars: 95         # ~visible characters per coursework line (width gauge)
   fill_page: true   # fill leftover page space with best-remaining bullets
                     # (set false to drop JD-irrelevant content instead)
   llm:

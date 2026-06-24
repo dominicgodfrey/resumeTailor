@@ -19,13 +19,14 @@ from backend.render import render_tex  # noqa: E402
 
 def _full_selection(content) -> Selection:
     """Select everything: all experience secondary bullets, all projects open
-    with all their bullets — the widest immutability surface."""
+    with all their bullets, and every course — the widest immutability surface."""
     sel = Selection()
     for job in content.experience:
         sel.exp_bullets[job.id] = [b.id for b in job.bullets]
     for proj in content.projects:
         sel.open_projects.append(proj.id)
         sel.proj_bullets[proj.id] = [b.id for b in proj.bullets]
+    sel.coursework = [c.name for c in content.profile.coursework]
     return sel
 
 
@@ -49,3 +50,14 @@ def test_rendered_tex_contains_locked_header_content():
         assert skill.items in tex          # static skills block verbatim
     for edu in content.profile.education:
         assert edu.school in tex
+
+
+def test_rendered_tex_contains_coursework_awards_and_nontech_verbatim():
+    content = load_content()
+    tex = render_tex(selection_to_context(content, _full_selection(content)))
+    for course in content.profile.coursework:
+        assert course.name in tex          # course names byte-for-byte
+    for award in content.profile.awards:
+        assert award in tex                # awards/certs byte-for-byte
+    for nt in content.profile.nontechnical:
+        assert nt.role in tex and nt.organization in tex

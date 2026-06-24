@@ -1,0 +1,25 @@
+id: exp-feltoncards
+company: "FeltonCards"
+title: "DeisHacks 2026"
+tech: "TODO: tech stack"
+location: "Waltham, MA"
+dates: "TODO: dates"
+# You listed 3-4 total bullets here (incl. the fixed one).
+min_bullets: 3
+max_bullets: 4
+# Fixed top bullet: high-level overview of the overall system.
+fixed_bullet: "TODO: top-level overview bullet describing the overall system (what it does, stack, flow)"
+tags: [fullstack, web]
+bullets:
+  - id: felton-2
+    text: "TODO: tailored, more specific bullet 2"
+    tags: [react, frontend]
+    tier: strong
+  - id: felton-3
+    text: "TODO: tailored, more specific bullet 3"
+    tags: [backend, api]
+    tier: strong
+  - id: felton-4
+    text: "TODO: tailored, more specific bullet 4"
+    tags: [database, sql]
+    tier: optional

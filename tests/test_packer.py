@@ -1,17 +1,24 @@
 """Unit tests for the greedy packer core, with a stub height function (no
-compile). Covers budget, pins, excludes, caps, the min-open floor, the breadth
-tie-break, score maximization, and determinism.
+compile). Experience is always shown in full; the budget governs PROJECTS only.
+Covers budget, pins, excludes, per-item caps/floors, the min-open floor,
+max_projects, the breadth tie-break, coursework selection, and determinism.
 """
 from __future__ import annotations
 
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from backend.models import Bullet, Content, Job, Profile, Project  # noqa: E402
-from backend.packer import PackConfig, pack, selection_to_context  # noqa: E402
+from backend.models import (  # noqa: E402
+    Bullet, Content, Course, Job, NonTechExperience, Profile, Project,
+)
+from backend.packer import (  # noqa: E402
+    PackConfig, pack, selection_to_context,
+    select_coursework, _coursework_line_count, _shrink_coursework_to_lines, Selection,
+)
 
 
 @dataclass
@@ -32,43 +39,63 @@ def _b(bid: str, tier: str = "optional") -> Bullet:
     return Bullet(id=bid, text=f"text for {bid}", tier=tier)
 
 
-def _content(jobs=(), projects=()) -> Content:
-    return Content(profile=Profile(name="T"), experience=list(jobs), projects=list(projects))
+def _content(jobs=(), projects=(), profile: Profile | None = None) -> Content:
+    return Content(profile=profile or Profile(name="T"),
+                   experience=list(jobs), projects=list(projects))
 
 
 def _job(jid: str, *bids: str) -> Job:
     return Job(id=jid, company="C", title="T", fixed_bullet="fixed", bullets=[_b(b) for b in bids])
 
 
-def _proj(pid: str, *bids: str) -> Project:
-    return Project(id=pid, name=pid, fixed_bullet="fixed", bullets=[_b(b) for b in bids])
+def _proj(pid: str, *bids: str, min_bullets=None, max_bullets=None) -> Project:
+    return Project(id=pid, name=pid, fixed_bullet="fixed", bullets=[_b(b) for b in bids],
+                   min_bullets=min_bullets, max_bullets=max_bullets)
 
 
-CFG = PackConfig(closeness_threshold=0.10, min_bullets_per_open_project=2, max_bullets_per_item=4)
+CFG = PackConfig(closeness_threshold=0.10, min_bullets_per_open_project=2,
+                 max_bullets_per_item=4, max_projects=4)
 
 
 # --------------------------------------------------------------------------- #
-# Score maximization + budget
+# Experience is always shown in full
 # --------------------------------------------------------------------------- #
-def test_picks_highest_scores_within_budget():
+def test_experience_always_shown_regardless_of_budget():
     content = _content(jobs=[_job("j", "b1", "b2", "b3")])
-    scores = {"b1": 5.0, "b2": 3.0, "b3": 1.0}
-    sel = pack(content, scores, StubHeights(), CFG, budget=2.0)
-    assert sel.exp_bullets["j"] == ["b1", "b2"]   # b3 dropped, budget = 2 bullets
-    assert sel.total_score(scores) == 8.0
+    sel = pack(content, {"b1": 0.0, "b2": 0.0, "b3": 0.0}, StubHeights(), CFG, budget=0.0)
+    assert sel.exp_bullets["j"] == ["b1", "b2", "b3"]   # every authored bullet, zero budget
 
 
-def test_budget_zero_selects_nothing():
-    content = _content(jobs=[_job("j", "b1")])
-    sel = pack(content, {"b1": 5.0}, StubHeights(), CFG, budget=0.0)
-    assert sel.all_bullets() == []
+def test_experience_not_charged_to_budget_so_projects_still_pack():
+    content = _content(jobs=[_job("j", "b1", "b2")],
+                       projects=[_proj("p", "pb1", "pb2")])
+    scores = {"b1": 9.0, "b2": 9.0, "pb1": 1.0, "pb2": 1.0}
+    sel = pack(content, scores, StubHeights(), CFG, budget=3.0)  # open(1) + 2 bullets
+    assert sel.exp_bullets["j"] == ["b1", "b2"]   # experience free
+    assert sel.open_projects == ["p"]             # budget spent on the project
 
 
 # --------------------------------------------------------------------------- #
-# min-open floor
+# Project score maximization + budget
+# --------------------------------------------------------------------------- #
+def test_project_picks_highest_scores_within_budget():
+    content = _content(projects=[_proj("p", "pb1", "pb2", "pb3")])
+    scores = {"pb1": 5.0, "pb2": 3.0, "pb3": 1.0}
+    sel = pack(content, scores, StubHeights(), CFG, budget=3.0)  # open(1) + 2 bullets
+    assert sel.proj_bullets["p"] == ["pb1", "pb2"]   # pb3 dropped at the floor
+
+
+def test_budget_zero_opens_no_projects():
+    content = _content(projects=[_proj("p", "pb1", "pb2")])
+    sel = pack(content, {"pb1": 5.0, "pb2": 5.0}, StubHeights(), CFG, budget=0.0)
+    assert sel.open_projects == []
+
+
+# --------------------------------------------------------------------------- #
+# min-open floor + max_projects
 # --------------------------------------------------------------------------- #
 def test_project_with_too_few_bullets_never_opens():
-    content = _content(projects=[_proj("p", "pb1")])  # only 1 bullet, min is 2
+    content = _content(projects=[_proj("p", "pb1")])  # only 1 bullet, default min is 2
     sel = pack(content, {"pb1": 9.0}, StubHeights(), CFG, budget=100.0)
     assert sel.open_projects == []
 
@@ -76,50 +103,55 @@ def test_project_with_too_few_bullets_never_opens():
 def test_opened_project_meets_min():
     content = _content(projects=[_proj("p", "pb1", "pb2", "pb3")])
     scores = {"pb1": 3.0, "pb2": 2.0, "pb3": 1.0}
-    sel = pack(content, scores, StubHeights(), CFG, budget=3.0)  # open(1)+2 bullets
+    sel = pack(content, scores, StubHeights(), CFG, budget=3.0)
     assert sel.open_projects == ["p"]
-    assert len(sel.proj_bullets["p"]) >= CFG.min_bullets_per_open_project
-    assert sel.proj_bullets["p"] == ["pb1", "pb2"]  # best two
+    assert sel.proj_bullets["p"] == ["pb1", "pb2"]   # best two = the floor
 
 
-# --------------------------------------------------------------------------- #
-# caps
-# --------------------------------------------------------------------------- #
-def test_max_bullets_per_item_caps_secondary():
-    cfg = PackConfig(closeness_threshold=0.1, min_bullets_per_open_project=2, max_bullets_per_item=2)
-    content = _content(projects=[_proj("p", "pb1", "pb2", "pb3")])
-    scores = {"pb1": 3.0, "pb2": 2.0, "pb3": 1.0}
+def test_max_projects_caps_opened_projects():
+    cfg = PackConfig(closeness_threshold=0.1, min_bullets_per_open_project=2,
+                     max_bullets_per_item=4, max_projects=2)
+    content = _content(projects=[_proj("p1", "a1", "a2"), _proj("p2", "b1", "b2"),
+                                 _proj("p3", "c1", "c2")])
+    scores = {k: 1.0 for k in ["a1", "a2", "b1", "b2", "c1", "c2"]}
     sel = pack(content, scores, StubHeights(), cfg, budget=100.0)
-    assert len(sel.proj_bullets["p"]) == 2
+    assert len(sel.open_projects) == 2   # third project blocked by the cap
+
+
+# --------------------------------------------------------------------------- #
+# per-item min/max overrides (TOTAL incl. fixed -> secondary = n-1)
+# --------------------------------------------------------------------------- #
+def test_per_project_max_bullets_override_caps_secondary():
+    # max_bullets=2 (total) -> 1 secondary; min_bullets=2 -> floor 1 secondary.
+    content = _content(projects=[_proj("p", "pb1", "pb2", "pb3", min_bullets=2, max_bullets=2)])
+    scores = {"pb1": 3.0, "pb2": 2.0, "pb3": 1.0}
+    sel = pack(content, scores, StubHeights(), CFG, budget=100.0)
+    assert sel.proj_bullets["p"] == ["pb1"]   # 1 secondary only
+
+
+def test_per_project_min_bullets_override_floor():
+    # min_bullets=3 (total) -> 2 secondary floor; needs >=2 bullets to open.
+    content = _content(projects=[_proj("p", "pb1", "pb2", "pb3", min_bullets=3, max_bullets=4)])
+    scores = {"pb1": 1.0, "pb2": 1.0, "pb3": 1.0}
+    sel = pack(content, scores, StubHeights(), CFG, budget=3.0)  # open(1)+2
+    assert sel.proj_bullets["p"] == ["pb1", "pb2"]
 
 
 # --------------------------------------------------------------------------- #
 # excludes
 # --------------------------------------------------------------------------- #
 def test_excludes_bullet_and_project():
-    content = _content(
-        jobs=[_job("j", "b1", "b2")],
-        projects=[_proj("p1", "pb1", "pb2"), _proj("p2", "qb1", "qb2")],
-    )
-    scores = {k: 5.0 for k in ["b1", "b2", "pb1", "pb2", "qb1", "qb2"]}
-    sel = pack(content, scores, StubHeights(), CFG, budget=100.0,
-               excludes=["b1", "p2"])
-    assert "b1" not in sel.all_bullets()        # excluded bullet gone
-    assert "b2" in sel.exp_bullets["j"]
-    assert "p2" not in sel.open_projects         # excluded project never opens
-    assert "p1" in sel.open_projects
+    content = _content(projects=[_proj("p1", "pb1", "pb2", "pb3"), _proj("p2", "qb1", "qb2")])
+    scores = {k: 5.0 for k in ["pb1", "pb2", "pb3", "qb1", "qb2"]}
+    sel = pack(content, scores, StubHeights(), CFG, budget=100.0, excludes=["pb1", "p2"])
+    assert "pb1" not in sel.all_bullets()        # excluded bullet gone
+    assert "p2" not in sel.open_projects          # excluded project never opens
+    assert "p1" in sel.open_projects              # still has 2 bullets -> meets floor
 
 
 # --------------------------------------------------------------------------- #
 # pins
 # --------------------------------------------------------------------------- #
-def test_pin_bullet_forces_inclusion_even_over_budget():
-    content = _content(jobs=[_job("j", "b1", "b2")])
-    scores = {"b1": 0.0, "b2": 9.0}    # b1 worthless by score
-    sel = pack(content, scores, StubHeights(), CFG, budget=0.0, pins=["b1"])
-    assert "b1" in sel.exp_bullets["j"]   # pinned despite zero budget/score
-
-
 def test_pin_project_forces_open_waiving_min():
     content = _content(projects=[_proj("p", "pb1")])  # only 1 bullet, < min
     sel = pack(content, {"pb1": 0.0}, StubHeights(), CFG, budget=100.0, pins=["p"])
@@ -136,70 +168,82 @@ def test_pin_bullet_in_closed_project_opens_it():
 
 def test_pin_overrides_max_cap():
     cfg = PackConfig(closeness_threshold=0.1, min_bullets_per_open_project=1, max_bullets_per_item=1)
-    content = _content(jobs=[_job("j", "b1", "b2", "b3")])
-    sel = pack(content, {"b1": 1, "b2": 1, "b3": 1}, StubHeights(), cfg, budget=0.0,
-               pins=["b1", "b2", "b3"])
-    assert set(sel.exp_bullets["j"]) == {"b1", "b2", "b3"}   # all pinned past the cap
+    content = _content(projects=[_proj("p", "pb1", "pb2", "pb3")])
+    sel = pack(content, {"pb1": 1, "pb2": 1, "pb3": 1}, StubHeights(), cfg, budget=0.0,
+               pins=["pb1", "pb2", "pb3"])
+    assert set(sel.proj_bullets["p"]) == {"pb1", "pb2", "pb3"}   # all pinned past the cap
 
 
 def test_exclude_vetoes_pin():
-    content = _content(jobs=[_job("j", "b1")])
-    sel = pack(content, {"b1": 5.0}, StubHeights(), CFG, budget=100.0,
-               pins=["b1"], excludes=["b1"])
-    assert "b1" not in sel.all_bullets()   # exclude wins the contradiction
+    content = _content(projects=[_proj("p", "pb1", "pb2")])
+    sel = pack(content, {"pb1": 5.0, "pb2": 5.0}, StubHeights(), CFG, budget=100.0,
+               pins=["pb1"], excludes=["pb1"])
+    assert "pb1" not in sel.all_bullets()   # exclude wins the contradiction
 
 
 # --------------------------------------------------------------------------- #
 # page filling (fill_page)
 # --------------------------------------------------------------------------- #
-def test_fill_page_uses_leftover_space_on_zero_score_content():
-    # No JD relevance at all, but budget to spare: fill_page packs anyway so the
-    # page is not left half-empty.
-    content = _content(jobs=[_job("j", "b1", "b2", "b3")])
-    scores = {"b1": 0.0, "b2": 0.0, "b3": 0.0}
-    sel = pack(content, scores, StubHeights(), CFG, budget=2.0)  # fill_page default
-    assert len(sel.exp_bullets.get("j", [])) == 2   # budget consumed by filler
-
-
-def test_fill_page_off_drops_irrelevant_content():
+def test_fill_page_off_drops_irrelevant_projects():
     cfg = PackConfig(closeness_threshold=0.10, min_bullets_per_open_project=2,
-                     max_bullets_per_item=4, fill_page=False)
-    content = _content(jobs=[_job("j", "b1", "b2", "b3")])
-    scores = {"b1": 0.0, "b2": 0.0, "b3": 0.0}
+                     max_bullets_per_item=4, max_projects=4, fill_page=False)
+    content = _content(projects=[_proj("p", "pb1", "pb2", "pb3")])
+    scores = {"pb1": 0.0, "pb2": 0.0, "pb3": 0.0}
     sel = pack(content, scores, StubHeights(), cfg, budget=100.0)
-    assert sel.all_bullets() == []   # nothing relevant -> nothing packed
+    assert sel.open_projects == []   # nothing relevant -> nothing packed
 
 
-def test_fill_page_prefers_relevant_content_first():
-    # Relevant bullet must be chosen before the zero-score filler.
-    content = _content(jobs=[_job("j", "b1", "b2", "b3")])
-    scores = {"b1": 0.0, "b2": 5.0, "b3": 0.0}
-    sel = pack(content, scores, StubHeights(), CFG, budget=1.0)  # room for one
-    assert sel.exp_bullets["j"] == ["b2"]   # relevance wins the single slot
+def test_fill_page_opens_irrelevant_project_as_filler():
+    content = _content(projects=[_proj("p", "pb1", "pb2")])
+    scores = {"pb1": 0.0, "pb2": 0.0}
+    sel = pack(content, scores, StubHeights(), CFG, budget=100.0)  # fill_page default
+    assert sel.open_projects == ["p"]   # filler keeps the page from being empty
 
 
 # --------------------------------------------------------------------------- #
 # breadth tie-break
 # --------------------------------------------------------------------------- #
 def test_breadth_prefers_opening_new_project_on_tie():
-    # b1 density 1.0; opening p (two 0.5-score, 0.5-height bullets, 0 open cost)
-    # also density 1.0 -> within threshold -> breadth wins.
-    content = _content(jobs=[_job("j", "b1")], projects=[_proj("p", "pb1", "pb2")])
-    scores = {"b1": 1.0, "pb1": 0.5, "pb2": 0.5}
-    heights = StubHeights(bullets={"pb1": 0.5, "pb2": 0.5}, opens={"p": 0.0})
-    sel = pack(content, scores, heights, CFG, budget=1.0)
-    assert sel.open_projects == ["p"]          # breadth chosen
-    assert "b1" not in sel.exp_bullets.get("j", [])
+    content = _content(projects=[_proj("p1", "pb1", "pb2", "pb3"),
+                                 _proj("p2", "qb1", "qb2", "qb3")])
+    scores = {k: 0.5 for k in ["pb1", "pb2", "pb3", "qb1", "qb2", "qb3"]}
+    heights = StubHeights(bullets={k: 0.5 for k in scores}, opens={"p1": 0.0, "p2": 0.0})
+    sel = pack(content, scores, heights, CFG, budget=2.0)
+    # open p1 (floor 2 = 1.0 used); then add-pb3 ties open-p2 -> breadth opens p2.
+    assert "p2" in sel.open_projects
+    assert "pb3" not in sel.proj_bullets["p1"]
 
 
-def test_breadth_prefers_least_developed_item_on_tie():
-    # Pin b1 (develops j1 to dev=1). Then j1.next and j2.next tie on density;
-    # the least-developed job (j2, dev=0) should win the one remaining slot.
-    content = _content(jobs=[_job("j1", "b1", "b2"), _job("j2", "c1")])
-    scores = {"b1": 1.0, "b2": 1.0, "c1": 1.0}
-    sel = pack(content, scores, StubHeights(), CFG, budget=2.0, pins=["b1"])
-    assert "c1" in sel.exp_bullets.get("j2", [])
-    assert "b2" not in sel.exp_bullets.get("j1", [])
+# --------------------------------------------------------------------------- #
+# coursework selection
+# --------------------------------------------------------------------------- #
+def _settings(line_chars=40, max_lines=2):
+    return SimpleNamespace(coursework_line_chars=line_chars, coursework_max_lines=max_lines)
+
+
+def test_coursework_line_count_wraps_by_width():
+    assert _coursework_line_count([], 40) == 0
+    assert _coursework_line_count(["Short"], 40) == 1
+    # label (~21) + two long names forces a second line.
+    assert _coursework_line_count(["Operating Systems", "Computer Networking"], 40) == 2
+
+
+def test_select_coursework_relevant_first_up_to_max_lines():
+    ranked = [("ML", 3.0), ("Security", 2.0), ("Networking", 0.0)]
+    chosen = select_coursework(ranked, _settings(line_chars=80, max_lines=2))
+    assert chosen == ["ML", "Security"]   # only relevant (score>0), score order
+
+
+def test_select_coursework_no_signal_shows_single_default_line():
+    ranked = [("Aaa", 0.0), ("Bbb", 0.0), ("Ccc", 0.0)]
+    chosen = select_coursework(ranked, _settings(line_chars=80, max_lines=2))
+    assert chosen and _coursework_line_count(chosen, 80) == 1   # 1 line, never empty
+
+
+def test_shrink_coursework_to_one_line():
+    sel = Selection(coursework=["Operating Systems", "Computer Networking", "Machine Learning"])
+    assert _shrink_coursework_to_lines(sel, 40, target_lines=1) is True
+    assert _coursework_line_count(sel.coursework, 40) <= 1
 
 
 # --------------------------------------------------------------------------- #
@@ -218,17 +262,29 @@ def test_deterministic():
     assert a.proj_bullets == b.proj_bullets
 
 
-def test_context_keeps_fixed_first_and_authored_order():
+def test_context_keeps_fixed_first_and_authored_order_and_new_sections():
+    profile = Profile(
+        name="T",
+        coursework=[Course(name="ML"), Course(name="Security")],
+        awards=["Dean's List"],
+        nontechnical=[NonTechExperience(role="Treasurer", organization="SAM")],
+    )
     content = _content(
         jobs=[_job("j", "b1", "b2")],
         projects=[_proj("p", "pb1", "pb2")],
+        profile=profile,
     )
     scores = {"b1": 1, "b2": 2, "pb1": 1, "pb2": 2}
     sel = pack(content, scores, StubHeights(), CFG, budget=100.0)
+    sel.coursework = ["Security", "ML"]   # chosen order (not authored order)
     ctx = selection_to_context(content, sel)
+
     job = ctx["experience"][0]
-    assert job["bullets"][0] == "fixed"                       # fixed first
-    assert job["bullets"][1:] == ["text for b1", "text for b2"]  # authored order, not score order
+    assert job["bullets"][0] == "fixed"                          # fixed first
+    assert job["bullets"][1:] == ["text for b1", "text for b2"]  # authored order
     proj = ctx["projects"][0]
     assert proj["bullets"][0] == "fixed"
     assert proj["bullets"][1:] == ["text for pb1", "text for pb2"]
+    assert ctx["coursework"] == ["Security", "ML"]               # chosen order preserved
+    assert ctx["awards"] == ["Dean's List"]
+    assert ctx["nontechnical"][0]["role"] == "Treasurer"
